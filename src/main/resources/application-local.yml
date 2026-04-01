@@ -1,0 +1,41 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: PaiSmart2025
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: PaiSmart2025
+  kafka:
+    bootstrap-servers: 127.0.0.1:9092
+    topic:
+      file-processing: file-processing-topic1
+      dlt: file-processing-dlt
+
+minio:
+  endpoint: http://localhost:19000
+  accessKey: admin
+  secretKey: PaiSmart2025
+  bucketName: uploads
+  publicUrl: http://localhost:19000
+
+elasticsearch:
+  host: localhost
+  port: 9200
+  scheme: http
+  username: elastic
+  password: PaiSmart2025
+
+deepseek:
+  api:
+    key: sk-7662b6a193ef4412b151f68a6849abb4
+
+embedding:
+  api:
+    key: sk-02e3d9ded90448078be306e4f7e8ae54
