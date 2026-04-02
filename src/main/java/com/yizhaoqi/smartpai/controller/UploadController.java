@@ -26,6 +26,8 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/v1/upload")
 public class UploadController {
+    private static final String EMPTY_FILE_MD5 = "d41d8cd98f00b204e9800998ecf8427e";
+    private static final String EMPTY_FILE_UPLOAD_MESSAGE = "空文件不支持分片上传";
 
     @Autowired
     private UploadService uploadService;
@@ -78,6 +80,12 @@ public class UploadController {
         
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("UPLOAD_CHUNK");
         try {
+            if (isEmptyFileUpload(fileMd5, totalSize)) {
+                LogUtils.logBusiness("UPLOAD_CHUNK", userId, "拒绝空文件上传: fileMd5=%s, fileName=%s, totalSize=%d", fileMd5, fileName, totalSize);
+                monitor.end("分片上传失败: " + EMPTY_FILE_UPLOAD_MESSAGE);
+                return badRequest(EMPTY_FILE_UPLOAD_MESSAGE);
+            }
+
             // 文件类型验证（仅在第一个分片时进行验证）
             if (chunkIndex == 0) {
                 FileTypeValidationService.FileTypeValidationResult validationResult = 
@@ -234,6 +242,13 @@ public class UploadController {
             String fileType = getFileType(request.fileName());
             LogUtils.logBusiness("MERGE_FILE", userId, "接收到合并文件请求: fileMd5=%s, fileName=%s, fileType=%s", 
                     request.fileMd5(), request.fileName(), fileType);
+
+            if (isEmptyFileUpload(request.fileMd5(), null)) {
+                LogUtils.logUserOperation(userId, "MERGE_FILE", request.fileMd5(), "FAILED_EMPTY_FILE");
+                LogUtils.logBusiness("MERGE_FILE", userId, "拒绝空文件合并请求: fileMd5=%s, fileName=%s", request.fileMd5(), request.fileName());
+                monitor.end("合并失败: " + EMPTY_FILE_UPLOAD_MESSAGE);
+                return badRequest(EMPTY_FILE_UPLOAD_MESSAGE);
+            }
             
             // 检查文件完整性和权限
             LogUtils.logBusiness("MERGE_FILE", userId, "检查文件记录和权限: fileMd5=%s, fileName=%s", request.fileMd5(), request.fileName());
@@ -336,6 +351,17 @@ public class UploadController {
             return 0.0;
         }
         return (double) uploadedChunks.size() / totalChunks * 100;
+    }
+
+    private boolean isEmptyFileUpload(String fileMd5, Long totalSize) {
+        return (totalSize != null && totalSize <= 0) || EMPTY_FILE_MD5.equalsIgnoreCase(fileMd5);
+    }
+
+    private ResponseEntity<Map<String, Object>> badRequest(String message) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("code", HttpStatus.BAD_REQUEST.value());
+        errorResponse.put("message", message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
     /**

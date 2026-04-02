@@ -4,6 +4,7 @@ import { nanoid } from '~/packages/utils/src';
 export const useKnowledgeBaseStore = defineStore(SetupStoreId.KnowledgeBase, () => {
   const tasks = ref<Api.KnowledgeBase.UploadTask[]>([]);
   const activeUploads = ref<Set<string>>(new Set());
+  const EMPTY_FILE_UPLOAD_MESSAGE = '空文件不支持分片上传';
 
   async function uploadChunk(task: Api.KnowledgeBase.UploadTask): Promise<boolean> {
     const totalChunks = Math.ceil(task.totalSize / chunkSize);
@@ -80,6 +81,10 @@ export const useKnowledgeBaseStore = defineStore(SetupStoreId.KnowledgeBase, () 
   async function enqueueUpload(form: Api.KnowledgeBase.Form) {
     // 获取文件列表中的第一个文件
     const file = form.fileList![0].file!;
+    if (file.size <= 0) {
+      window.$message?.error(EMPTY_FILE_UPLOAD_MESSAGE);
+      return;
+    }
     // 计算文件的MD5值，用于唯一标识文件
     const md5 = await calculateMD5(file);
 
