@@ -1,6 +1,6 @@
 派聪明（PaiSmart）是一个企业级的 AI 知识库管理系统，采用检索增强生成（RAG）技术，提供智能文档处理和检索能力。
 
-核心技术栈包括 ElasticSearch、Kafka、WebSocket、Spring Security、Docker、MySQL 和 Redis。
+核心技术栈包括 Milvus、Kafka、WebSocket、Spring Security、Docker、MySQL 和 Redis。
 
 它的目标是帮助企业和个人更高效地管理和利用知识库中的信息，支持多租户架构，允许用户通过自然语言查询知识库，并获得基于自身文档的 AI 生成响应。
 
@@ -19,7 +19,8 @@
 + 数据库 : MySQL 8.0
 + ORM : Spring Data JPA
 + 缓存 : Redis
-+ 搜索引擎 : Elasticsearch 8.10.0
++ 向量数据库 : Milvus 2.5.x
++ 文本召回 : MySQL（应用层融合排序）
 + 消息队列 : Apache Kafka
 + 文件存储 : MinIO
 + 文档解析 : Apache Tika
@@ -109,7 +110,8 @@ frontend/
 
 - 将上传的文档进行语义分块
 - 调用豆包 Embedding 模型为每个文本块生成高维向量
-- 将向量存储到 ElasticSearch 以支持语义搜索和关键词搜索
+- 将向量存储到 Milvus 以支持语义搜索
+- 基于 MySQL 文本召回补充关键词匹配能力，并在应用层完成融合排序
 - 可以根据用户的查询检索相关文档
 - 为 LLM 提供完整的上下文，从而生成更准确、基于文档的响应内容
 
@@ -132,11 +134,11 @@ frontend/
 - Node.js 18.20.0 或更高版本
 - pnpm 8.7.0 或更高版本
 - MySQL 8.0
-- Elasticsearch 8.10.0
+- Milvus 2.5.x
 - MinIO 8.5.12
 - Kafka 3.2.1
 - Redis 7.0.11
-- Docker（可选，用于运行 Redis、MinIO、Elasticsearch 和 Kafka 等服务）
+- Docker（可选，用于运行 Redis、MinIO、Milvus 和 Kafka 等服务）
 
 ## 架构设计
 
@@ -177,7 +179,7 @@ public class DocumentService {
     private MinioClient minioClient;
     
     @Autowired
-    private ElasticsearchService elasticsearchService;
+    private VectorStore vectorStore;
     
     @Transactional
     public void deleteDocument(String fileMd5) {
@@ -229,4 +231,3 @@ pnpm install
 # 启动项目
 pnpm run dev
 ```
-

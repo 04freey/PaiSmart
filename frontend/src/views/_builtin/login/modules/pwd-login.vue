@@ -95,14 +95,14 @@ function handleAccountLogin(account: Account) {
       </NInput>
     </NFormItem>
     <div class="flex-col gap-6">
-      <NButton type="primary" size="large" round block :loading="authStore.loginLoading" @click="handleSubmit">
+      <NButton type="primary" size="large" round block strong :loading="authStore.loginLoading" @click="handleSubmit">
         {{ $t('page.login.common.login') }}
       </NButton>
-      <NButton block @click="toggleLoginModule('register')">
+      <NButton block class="secondary-btn" @click="toggleLoginModule('register')">
         {{ $t(loginModuleRecord.register) }}
       </NButton>
 
-      <span class="text-center">
+      <span class="text-center agreement-copy">
         登录即代表已阅读并同意我们的
         <NButton text type="primary">用户协议</NButton>
         和
@@ -110,8 +110,8 @@ function handleAccountLogin(account: Account) {
       </span>
 
       <NDivider class="text-14px text-#666 !m-0">{{ $t('page.login.pwdLogin.otherAccountLogin') }}</NDivider>
-      <div class="flex-center gap-12px">
-        <NButton v-for="item in accounts" :key="item.key" type="primary" @click="handleAccountLogin(item)">
+      <div class="demo-accounts">
+        <NButton v-for="item in accounts" :key="item.key" quaternary class="demo-account-btn" @click="handleAccountLogin(item)">
           {{ item.label }}
         </NButton>
       </div>
@@ -119,4 +119,27 @@ function handleAccountLogin(account: Account) {
   </NForm>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.secondary-btn {
+  border-color: rgb(15 23 42 / 8%);
+}
+
+.agreement-copy {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #667085;
+}
+
+.demo-accounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.demo-account-btn {
+  height: 40px;
+  border-radius: 14px;
+  background: rgb(91 108 255 / 7%);
+  color: rgb(67 56 202);
+}
+</style>

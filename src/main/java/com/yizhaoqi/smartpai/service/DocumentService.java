@@ -42,7 +42,7 @@ public class DocumentService {
     private MinioClient minioClient;
 
     @Autowired
-    private ElasticsearchService elasticsearchService;
+    private VectorStore vectorStore;
 
     @Autowired
     private OrgTagCacheService orgTagCacheService;
@@ -56,7 +56,7 @@ public class DocumentService {
      * 1. FileUpload记录
      * 2. DocumentVector记录
      * 3. MinIO中的文件
-     * 4. Elasticsearch中的向量数据
+     * 4. Milvus中的向量数据
      *
      * @param fileMd5 文件MD5
      */
@@ -69,12 +69,12 @@ public class DocumentService {
             FileUpload fileUpload = fileUploadRepository.findByFileMd5AndUserId(fileMd5, userId)
                     .orElseThrow(() -> new RuntimeException("文件不存在"));
             
-            // 1. 删除Elasticsearch中的数据
+            // 1. 删除 Milvus 中的数据
             try {
-                elasticsearchService.deleteByFileMd5(fileMd5);
-                logger.info("成功从Elasticsearch删除文档: {}", fileMd5);
+                vectorStore.deleteByFileMd5(fileMd5);
+                logger.info("成功从 Milvus 删除文档: {}", fileMd5);
             } catch (Exception e) {
-                logger.error("从Elasticsearch删除文档时出错: {}", fileMd5, e);
+                logger.error("从 Milvus 删除文档时出错: {}", fileMd5, e);
                 // 继续删除其他数据
             }
             

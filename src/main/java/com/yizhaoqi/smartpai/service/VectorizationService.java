@@ -1,17 +1,17 @@
 package com.yizhaoqi.smartpai.service;
 
 import com.yizhaoqi.smartpai.client.EmbeddingClient;
-import com.yizhaoqi.smartpai.model.DocumentVector;
-import com.yizhaoqi.smartpai.entity.EsDocument;
+import com.yizhaoqi.smartpai.entity.KnowledgeChunkDocument;
 import com.yizhaoqi.smartpai.entity.TextChunk;
+import com.yizhaoqi.smartpai.model.DocumentVector;
 import com.yizhaoqi.smartpai.repository.DocumentVectorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.IntStream;
 
 // 向量化服务类
@@ -24,10 +24,13 @@ public class VectorizationService {
     private EmbeddingClient embeddingClient;
 
     @Autowired
-    private ElasticsearchService elasticsearchService;
+    private VectorStore vectorStore;
 
     @Autowired
     private DocumentVectorRepository documentVectorRepository;
+
+    @Value("${embedding.api.model:text-embedding-v4}")
+    private String embeddingModel;
 
     /**
      * 执行向量化操作
@@ -38,9 +41,9 @@ public class VectorizationService {
      */
     public void vectorize(String fileMd5, String userId, String orgTag, boolean isPublic) {
         try {
-            logger.info("开始向量化文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}", 
-                       fileMd5, userId, orgTag, isPublic);
-                       
+            logger.info("开始向量化文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}",
+                    fileMd5, userId, orgTag, isPublic);
+
             // 获取文件分块内容
             List<TextChunk> chunks = fetchTextChunks(fileMd5);
             if (chunks == null || chunks.isEmpty()) {
@@ -55,23 +58,26 @@ public class VectorizationService {
 
             // 调用外部模型生成向量
             List<float[]> vectors = embeddingClient.embed(texts);
+            if (vectors.size() != chunks.size()) {
+                throw new IllegalStateException("Embedding 返回向量数与文本块数不一致");
+            }
 
-            // 构建 Elasticsearch 文档并存储
-            List<EsDocument> esDocuments = IntStream.range(0, chunks.size())
-                    .mapToObj(i -> new EsDocument(
-                            UUID.randomUUID().toString(),
+            // 构建统一知识块文档并写入向量库
+            List<KnowledgeChunkDocument> documents = IntStream.range(0, chunks.size())
+                    .mapToObj(i -> new KnowledgeChunkDocument(
+                            KnowledgeChunkDocument.buildId(fileMd5, chunks.get(i).getChunkId()),
                             fileMd5,
                             chunks.get(i).getChunkId(),
                             chunks.get(i).getContent(),
                             vectors.get(i),
-                            "deepseek-embed", // 更新为 DeepSeek 的模型版本
+                            embeddingModel,
                             userId,
                             orgTag,
                             isPublic
                     ))
                     .toList();
 
-            elasticsearchService.bulkIndex(esDocuments); // 批量存储到 Elasticsearch
+            vectorStore.upsert(documents);
 
             logger.info("向量化完成，fileMd5: {}", fileMd5);
         } catch (Exception e) {
@@ -79,7 +85,7 @@ public class VectorizationService {
             throw new RuntimeException("向量化失败", e);
         }
     }
-    
+
 
     /**
      * 获取文件分块内容

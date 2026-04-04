@@ -64,6 +64,13 @@ watch(visible, () => {
     :mask-closable="false"
     class="w-1000px!"
   >
+    <div class="search-hero">
+      <div>
+        <p class="search-eyebrow">大聪明 · Retrieval</p>
+        <h3 class="search-title">用关键词快速验证召回结果</h3>
+      </div>
+      <p class="search-desc">适合检查某段文本是否被切片收录、召回分数是否合理，以及来源文件是否正确。</p>
+    </div>
     <NForm
       ref="formRef"
       :model="model"
@@ -111,7 +118,7 @@ watch(visible, () => {
         <NCard
           v-for="(item, index) in list"
           :key="index"
-          class="my-8"
+          class="result-card my-8"
           embedded
           :segmented="{
             content: true,
@@ -143,4 +150,53 @@ watch(visible, () => {
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.search-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgb(91 108 255 / 10%);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgb(91 108 255 / 14%), transparent 30%),
+    linear-gradient(135deg, rgb(255 255 255 / 98%), rgb(245 247 255 / 98%));
+}
+
+.search-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgb(var(--primary-color));
+  text-transform: uppercase;
+}
+
+.search-title {
+  margin: 0;
+  font-size: 24px;
+  color: #101828;
+}
+
+.search-desc {
+  max-width: 420px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #667085;
+}
+
+.result-card {
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 5%);
+}
+
+@media (max-width: 768px) {
+  .search-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>

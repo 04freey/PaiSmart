@@ -1,10 +1,8 @@
 package com.yizhaoqi.smartpai.utils;
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch.core.DeleteByQueryRequest;
 import com.yizhaoqi.smartpai.model.FileUpload;
 import com.yizhaoqi.smartpai.repository.FileUploadRepository;
+import com.yizhaoqi.smartpai.service.VectorStore;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.MinioClient;
@@ -40,7 +38,7 @@ public class MinioMigrationUtil {
     private FileUploadRepository fileUploadRepository;
 
     @Autowired
-    private ElasticsearchClient esClient;
+    private VectorStore vectorStore;
 
     /**
      * 迁移所有文件从旧路径到新路径
@@ -166,14 +164,12 @@ public class MinioMigrationUtil {
         logger.warn("========================================");
 
         try {
-            // 1. 清空 ElasticSearch
-            logger.info("清空 ElasticSearch 索引...");
-            DeleteByQueryRequest deleteRequest = DeleteByQueryRequest.of(d -> d
-                .index("knowledge_base")
-                .query(Query.of(q -> q.matchAll(m -> m)))
-            );
-            esClient.deleteByQuery(deleteRequest);
-            logger.info("✅ ElasticSearch 已清空");
+            List<FileUpload> files = fileUploadRepository.findAll();
+
+            // 1. 清空 Milvus
+            logger.info("清空 Milvus 集合...");
+            vectorStore.deleteAll();
+            logger.info("✅ Milvus 集合已清空");
 
             // 2. 清空 MySQL 表
             logger.info("清空 MySQL 表...");
@@ -182,7 +178,6 @@ public class MinioMigrationUtil {
 
             // 3. 清空 MinIO merged 目录
             logger.info("清空 MinIO merged 目录...");
-            List<FileUpload> files = fileUploadRepository.findAll();
             for (FileUpload file : files) {
                 try {
                     minioClient.removeObject(

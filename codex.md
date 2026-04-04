@@ -22,7 +22,7 @@
 
 1. 当前机器 `java -version` 正常，但 `mvn -v` 报错，原因是 `JAVA_HOME` 未正确设置。
 2. 项目中的后端配置与 `docs/docker-compose.yaml` 存在不一致：
-   - MySQL / Redis / Elasticsearch / MinIO 的连接参数并不完全一致
+   - MySQL / Redis / Milvus / MinIO 的连接参数并不完全一致
    - Kafka topic 名称也不完全一致
 3. MinIO 使用的 bucket 为 `uploads`，代码里看起来没有自动创建逻辑，建议手动创建。
 
@@ -58,7 +58,7 @@ docker compose -f docs/docker-compose.yaml ps
 - MySQL
 - Redis
 - Kafka
-- Elasticsearch
+- Milvus（含 etcd / MinIO 子依赖）
 - MinIO
 
 ### 常见问题
@@ -152,7 +152,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3307/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
     password: PaiSmart2025
 
@@ -175,12 +175,16 @@ minio:
   bucketName: uploads
   publicUrl: http://localhost:19000
 
-elasticsearch:
+milvus:
   host: localhost
-  port: 9200
-  scheme: http
-  username: elastic
-  password: PaiSmart2025
+  port: 19530
+  collection-name: knowledge_base
+
+search:
+  vector-weight: 0.7
+  text-weight: 0.3
+  vector-recall-k: 40
+  text-recall-k: 40
 
 deepseek:
   api:
@@ -287,4 +291,3 @@ pnpm run dev
 5. 文件上传可用
 6. 向量化与检索可用
 7. AI 对话可用
-

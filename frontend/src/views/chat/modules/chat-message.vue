@@ -3,6 +3,7 @@
 import { nextTick } from 'vue';
 import { VueMarkdownIt } from 'vue-markdown-shiki';
 import { formatDate } from '@/utils/common';
+import { $t } from '@/locales';
 defineOptions({ name: 'ChatMessage' });
 
 const props = defineProps<{
@@ -209,36 +210,35 @@ async function handleSourceFileClick(fileInfo: { fileName: string, referenceNumb
 </script>
 
 <template>
-  <div class="mb-8 flex-col gap-2">
-    <div v-if="msg.role === 'user'" class="flex items-center gap-4">
-      <NAvatar class="bg-success">
-        <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">{{ authStore.userInfo.username }}</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+  <div class="message-row" :class="msg.role === 'user' ? 'is-user' : 'is-assistant'">
+    <div class="message-meta">
+      <div class="meta-identity">
+        <NAvatar v-if="msg.role === 'user'" class="user-avatar">
+          <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
+        </NAvatar>
+        <NAvatar v-else class="assistant-avatar">
+          <SystemLogo class="text-6 text-white" />
+        </NAvatar>
+        <div class="meta-copy">
+          <NText class="meta-name">{{ msg.role === 'user' ? authStore.userInfo.username : $t('system.title') }}</NText>
+          <NText class="meta-time">{{ formatDate(msg.timestamp) }}</NText>
+        </div>
       </div>
     </div>
-    <div v-else class="flex items-center gap-4">
-      <NAvatar class="bg-primary">
-        <SystemLogo class="text-6 text-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">派聪明</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+
+    <div class="message-bubble" :class="msg.role === 'user' ? 'user-bubble' : 'assistant-bubble'">
+      <NText v-if="msg.status === 'pending'" class="status-text">
+        <icon-eos-icons:three-dots-loading class="text-8" />
+      </NText>
+      <NText v-else-if="msg.status === 'error'" class="status-text italic">服务器繁忙，请稍后再试</NText>
+      <div v-else-if="msg.role === 'assistant'" class="assistant-content" @click="handleContentClick">
+        <VueMarkdownIt :content="content" />
       </div>
+      <div v-else class="user-content">{{ content }}</div>
     </div>
-    <NText v-if="msg.status === 'pending'">
-      <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
-    </NText>
-    <NText v-else-if="msg.status === 'error'" class="ml-12 mt-2 italic">服务器繁忙，请稍后再试</NText>
-    <div v-else-if="msg.role === 'assistant'" class="mt-2 pl-12" @click="handleContentClick">
-      <VueMarkdownIt :content="content" />
-    </div>
-    <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
-    <NDivider class="ml-12 w-[calc(100%-3rem)] mb-0! mt-2!" />
-    <div class="ml-12 flex gap-4">
-      <NButton quaternary @click="handleCopy(msg.content)">
+
+    <div class="message-actions">
+      <NButton quaternary circle class="copy-btn" @click="handleCopy(msg.content)">
         <template #icon>
           <icon-mynaui:copy />
         </template>
@@ -248,19 +248,209 @@ async function handleSourceFileClick(fileInfo: { fileName: string, referenceNumb
 </template>
 
 <style scoped lang="scss">
+.message-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meta-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #101828;
+}
+
+.meta-time {
+  font-size: 12px;
+  color: #98a2b3;
+}
+
+.assistant-avatar {
+  background: linear-gradient(135deg, rgb(var(--primary-color)) 0%, #7c86ff 100%);
+  box-shadow: 0 8px 18px rgb(91 108 255 / 30%);
+}
+
+.user-avatar {
+  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+  box-shadow: 0 8px 18px rgb(34 197 94 / 26%);
+}
+
+.message-bubble {
+  position: relative;
+  max-width: min(88%, 920px);
+  padding: 16px 18px;
+  border-radius: 24px;
+  backdrop-filter: blur(10px);
+}
+
+.assistant-bubble {
+  border: 1px solid rgb(15 23 42 / 6%);
+  background:
+    radial-gradient(circle at top right, rgb(91 108 255 / 10%), transparent 26%),
+    linear-gradient(180deg, rgb(255 255 255 / 94%), rgb(249 250 251 / 98%));
+  box-shadow: 0 18px 40px rgb(15 23 42 / 5%);
+}
+
+.user-bubble {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgb(var(--primary-color)) 0%, #7c86ff 100%);
+  box-shadow: 0 18px 40px rgb(91 108 255 / 18%);
+}
+
+.assistant-content,
+.user-content,
+.status-text {
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+.user-content {
+  color: white;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.status-text {
+  color: #667085;
+}
+
+.message-actions {
+  display: flex;
+  align-items: center;
+}
+
+.copy-btn {
+  opacity: 0.72;
+}
+
+.is-user {
+  align-items: flex-end;
+}
+
+.is-user .message-meta {
+  justify-content: flex-end;
+}
+
+.is-user .meta-identity {
+  flex-direction: row-reverse;
+}
+
+.is-user .meta-copy {
+  align-items: flex-end;
+}
+
+.is-user .message-actions {
+  justify-content: flex-end;
+}
+
+:deep(.assistant-content p) {
+  margin: 0 0 12px;
+}
+
+:deep(.assistant-content p:last-child) {
+  margin-bottom: 0;
+}
+
+:deep(.assistant-content ul),
+:deep(.assistant-content ol) {
+  margin: 10px 0 12px 1.2em;
+}
+
+:deep(.assistant-content li + li) {
+  margin-top: 6px;
+}
+
+:deep(.assistant-content pre) {
+  overflow-x: auto;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgb(15 23 42 / 4%);
+}
+
+:deep(.assistant-content code:not(pre code)) {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgb(15 23 42 / 6%);
+  font-size: 0.92em;
+}
+
 :deep(.source-file-link) {
-  color: #1890ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: rgb(67 56 202);
   cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s;
+  text-decoration: none;
+  background: rgb(91 108 255 / 8%);
+  transition: color 0.2s, background-color 0.2s;
 
   &:hover {
-    color: #40a9ff;
-    text-decoration: none;
+    color: #4338ca;
+    background: rgb(91 108 255 / 14%);
   }
 
   &:active {
-    color: #096dd9;
+    color: #3730a3;
+  }
+}
+
+.dark {
+  .meta-name {
+    color: #f8fafc;
+  }
+
+  .assistant-bubble {
+    border-color: rgb(255 255 255 / 8%);
+    background:
+      radial-gradient(circle at top right, rgb(91 108 255 / 14%), transparent 26%),
+      linear-gradient(180deg, rgb(17 24 39 / 78%), rgb(15 23 42 / 90%));
+    box-shadow: 0 18px 40px rgb(0 0 0 / 18%);
+  }
+
+  .status-text {
+    color: #94a3b8;
+  }
+
+  :deep(.assistant-content pre) {
+    background: rgb(255 255 255 / 5%);
+  }
+
+  :deep(.assistant-content code:not(pre code)) {
+    background: rgb(255 255 255 / 7%);
+  }
+
+  :deep(.source-file-link) {
+    color: #c7d2fe;
+    background: rgb(91 108 255 / 18%);
+  }
+}
+
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: 100%;
+    padding: 14px 16px;
+    border-radius: 20px;
   }
 }
 </style>

@@ -34,7 +34,7 @@ function handleFilePreview(fileName: string, fileMd5: string) {
   console.log('[知识库] 点击预览按钮:', {
     fileName,
     fileMd5,
-    '完整信息': { fileName, fileMd5 }
+    完整信息: { fileName, fileMd5 }
   });
 
   previewFileName.value = fileName;
@@ -128,12 +128,7 @@ const { columns, columnChecks, data, getData, loading } = useTable({
       render: row => (
         <div class="flex gap-4">
           {renderResumeUploadButton(row)}
-          <NButton
-            type="primary"
-            ghost
-            size="small"
-            onClick={() => handleFilePreview(row.fileName, row.fileMd5)}
-          >
+          <NButton type="primary" ghost size="small" onClick={() => handleFilePreview(row.fileName, row.fileMd5)}>
             预览
           </NButton>
           <NPopconfirm onPositiveClick={() => handleDelete(row.fileMd5)}>
@@ -154,6 +149,24 @@ const { columns, columnChecks, data, getData, loading } = useTable({
 
 const store = useKnowledgeBaseStore();
 const { tasks } = storeToRefs(store);
+
+const summary = computed(() => {
+  const total = tasks.value.length;
+  const completed = tasks.value.filter(item => item.status === UploadStatus.Completed).length;
+  const processing = tasks.value.filter(item => item.status === UploadStatus.Pending).length;
+  const interrupted = tasks.value.filter(item => item.status === UploadStatus.Break).length;
+  const publicCount = tasks.value.filter(item => item.public || item.isPublic).length;
+
+  return { total, completed, processing, interrupted, publicCount };
+});
+
+const summaryItems = computed(() => [
+  { label: '文件总数', value: summary.value.total, hint: '当前知识库中的文件规模' },
+  { label: '已完成', value: summary.value.completed, hint: '已解析并建立索引的文档' },
+  { label: '处理中', value: summary.value.processing, hint: '正在上传、解析或向量化' },
+  { label: '公开文档', value: summary.value.publicCount, hint: '团队可直接检索的内容' }
+]);
+
 onMounted(async () => {
   await getList();
 });
@@ -327,18 +340,41 @@ async function onBeforeUpload(
 
 <template>
   <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NCard title="文件列表" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
-      <template #header-extra>
-        <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleUpload" @refresh="getList">
-          <template #prefix>
-            <NButton size="small" ghost type="primary" @click="handleSearch">
-              <template #icon>
-                <icon-ic-round-search class="text-icon" />
-              </template>
-              检索知识库
-            </NButton>
+    <section class="knowledge-overview">
+      <div class="overview-main">
+        <p class="overview-eyebrow">大聪明 · 知识底座</p>
+        <h1 class="overview-title">让上传、检索和预览落在同一个工作台里</h1>
+        <p class="overview-desc">
+          这里不是“文件堆放处”，而是你给大聪明持续喂知识、管理权限、验证召回效果的控制面板。
+        </p>
+      </div>
+      <div class="overview-actions">
+        <NButton type="primary" size="large" @click="handleUpload">
+          <template #icon>
+            <icon-mdi:upload />
           </template>
-        </TableHeaderOperation>
+          上传文件
+        </NButton>
+        <NButton size="large" ghost type="primary" @click="handleSearch">
+          <template #icon>
+            <icon-ic-round-search class="text-icon" />
+          </template>
+          检索知识库
+        </NButton>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <article v-for="item in summaryItems" :key="item.label" class="summary-item">
+        <span class="summary-label">{{ item.label }}</span>
+        <strong class="summary-value">{{ item.value }}</strong>
+        <span class="summary-hint">{{ item.hint }}</span>
+      </article>
+    </section>
+
+    <NCard title="文件列表" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper table-panel">
+      <template #header-extra>
+        <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleUpload" @refresh="getList" />
       </template>
       <NDataTable
         striped
@@ -356,8 +392,7 @@ async function onBeforeUpload(
     </NCard>
     <UploadDialog v-model:visible="uploadVisible" />
     <SearchDialog v-model:visible="searchVisible" />
-    
-    <!-- 文件预览弹窗 -->
+
     <NModal v-model:show="previewVisible" preset="card" title="文件预览" style="width: 80%; max-width: 1000px;">
       <FilePreview
         :file-name="previewFileName"
@@ -370,6 +405,91 @@ async function onBeforeUpload(
 </template>
 
 <style scoped lang="scss">
+.knowledge-overview {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 30px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgb(91 108 255 / 18%), transparent 28%),
+    linear-gradient(135deg, rgb(255 255 255 / 96%), rgb(244 247 255 / 96%));
+  border: 1px solid rgb(91 108 255 / 10%);
+  box-shadow: 0 24px 50px rgb(15 23 42 / 7%);
+}
+
+.overview-main {
+  max-width: 720px;
+}
+
+.overview-eyebrow {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgb(var(--primary-color));
+  text-transform: uppercase;
+}
+
+.overview-title {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.15;
+  color: #101828;
+}
+
+.overview-desc {
+  margin: 14px 0 0;
+  max-width: 640px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #475467;
+}
+
+.overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 22px;
+  border-radius: 22px;
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid rgb(15 23 42 / 6%);
+}
+
+.summary-label {
+  font-size: 13px;
+  color: #667085;
+}
+
+.summary-value {
+  font-size: 30px;
+  line-height: 1;
+  color: #101828;
+}
+
+.summary-hint {
+  font-size: 12px;
+  color: #98a2b3;
+}
+
+.table-panel {
+  border-radius: 28px;
+  box-shadow: 0 24px 50px rgb(15 23 42 / 6%);
+}
+
 .file-list-container {
   transition: width 0.3s ease;
 }
@@ -377,6 +497,32 @@ async function onBeforeUpload(
 :deep() {
   .n-progress-icon.n-progress-icon--as-text {
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 960px) {
+  .knowledge-overview {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .knowledge-overview {
+    padding: 22px 18px;
+    border-radius: 22px;
+  }
+
+  .overview-title {
+    font-size: 26px;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

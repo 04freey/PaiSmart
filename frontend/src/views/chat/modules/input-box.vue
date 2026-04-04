@@ -87,17 +87,17 @@ const handShortcut = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="relative w-full b-1 b-#1c1c1c20 bg-#fff p-4 card-wrapper dark:bg-#1c1c1c">
+  <div class="chat-input-shell relative w-full p-3 dark:bg-transparent">
     <textarea
       ref="inputRef"
       v-model.trim="input.message"
-      placeholder="给 派聪明 发送消息"
-      class="min-h-10 w-full cursor-text resize-none b-none bg-transparent color-#333 caret-[rgb(var(--primary-color))] outline-none dark:color-#f1f1f1"
+      placeholder="给 大聪明 发送消息，Enter 发送，Shift / Ctrl + Enter 换行"
+      class="min-h-24 w-full cursor-text resize-none b-none bg-transparent px-2 py-1 color-#333 caret-[rgb(var(--primary-color))] outline-none dark:color-#f1f1f1"
       @keydown="handShortcut"
     />
-    <div class="flex items-center justify-between pt-2">
-      <div class="flex items-center text-18px color-gray-500">
-        <NText class="text-14px">连接状态：</NText>
+    <div class="flex items-center justify-between border-t border-#1c1c1c10 px-1 pt-3 dark:border-#ffffff12">
+      <div class="flex items-center gap-2 text-18px color-gray-500">
+        <NText class="text-13px font-500 color-#667085 dark:color-#98a2b3">连接状态</NText>
         <icon-eos-icons:loading v-if="wsStatus === 'CONNECTING'" class="color-yellow" />
         <icon-fluent:plug-connected-checkmark-20-filled v-else-if="wsStatus === 'OPEN'" class="color-green" />
         <icon-tabler:plug-connected-x v-else class="color-red" />
@@ -112,4 +112,21 @@ const handShortcut = (e: KeyboardEvent) => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.chat-input-shell {
+  border: 1px solid rgb(15 23 42 / 8%);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgb(91 108 255 / 9%), transparent 28%),
+    linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(248 250 252 / 98%));
+  box-shadow: 0 20px 45px rgb(15 23 42 / 8%);
+}
+
+.dark .chat-input-shell {
+  border-color: rgb(255 255 255 / 10%);
+  background:
+    radial-gradient(circle at top right, rgb(91 108 255 / 16%), transparent 28%),
+    linear-gradient(180deg, rgb(24 24 27 / 95%), rgb(17 24 39 / 95%));
+  box-shadow: 0 16px 40px rgb(0 0 0 / 28%);
+}
+</style>
