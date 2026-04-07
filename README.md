@@ -77,14 +77,7 @@ frontend/
 └── ...               # 构建配置文件
 ```
 
-## 派聪明的成绩
 
-派聪明是 9 月份上线的，截止到目前，已经取得了非常瞩目的成绩，我这里晒一下哈。
-
-
-
-
->派聪明如何写到简历上：[https://paicoding.com/column/10/2](https://paicoding.com/column/10/2)
 
 
 
