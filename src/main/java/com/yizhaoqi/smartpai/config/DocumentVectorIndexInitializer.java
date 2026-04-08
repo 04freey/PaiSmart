@@ -7,7 +7,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 启动时为 document_vectors 补齐常用索引。
+ * {@code document_vectors} 表索引初始化器。
+ * <p>
+ * 该类在应用启动时自动检查并补齐知识分块表上的常用索引，
+ * 主要目标有两个：
+ * <ul>
+ *     <li>提升按文件、用户、组织和公开状态过滤时的查询性能</li>
+ *     <li>尽量为文本召回准备 FULLTEXT 索引，失败时允许系统降级运行</li>
+ * </ul>
+ * 这样既能减少人工初始化成本，也能保证不同本地环境下具备更稳定的启动体验。
  */
 @Component
 public class DocumentVectorIndexInitializer implements CommandLineRunner {
@@ -28,6 +36,7 @@ public class DocumentVectorIndexInitializer implements CommandLineRunner {
                 return;
             }
 
+            // 先补齐结构化查询常用索引，覆盖按文件、用户、组织和公开状态的过滤场景。
             createIndexIfAbsent(
                     "document_vectors",
                     "idx_document_vectors_file_chunk",
@@ -54,6 +63,12 @@ public class DocumentVectorIndexInitializer implements CommandLineRunner {
         }
     }
 
+    /**
+     * 尝试为文本内容列创建全文索引。
+     * <p>
+     * 优先使用 ngram parser 以改善中文检索效果；若当前 MySQL 环境不支持，
+     * 则退化为普通 FULLTEXT；若仍失败，后续文本搜索会继续回退到 LIKE 方案。
+     */
     private void ensureFullTextIndex() {
         if (indexExists("document_vectors", "ft_document_vectors_text_ngram")
                 || indexExists("document_vectors", "ft_document_vectors_text")) {
@@ -74,6 +89,9 @@ public class DocumentVectorIndexInitializer implements CommandLineRunner {
         }
     }
 
+    /**
+     * 若索引不存在则执行 DDL 创建。
+     */
     private void createIndexIfAbsent(String tableName, String indexName, String ddl) {
         if (indexExists(tableName, indexName)) {
             return;
@@ -82,6 +100,9 @@ public class DocumentVectorIndexInitializer implements CommandLineRunner {
         logger.info("已创建索引 {} on {}", indexName, tableName);
     }
 
+    /**
+     * 通过 information_schema 判断目标表是否已经建好。
+     */
     private boolean tableExists(String tableName) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
@@ -91,6 +112,9 @@ public class DocumentVectorIndexInitializer implements CommandLineRunner {
         return count != null && count > 0;
     }
 
+    /**
+     * 通过 information_schema 判断索引是否已存在，避免重复执行 DDL。
+     */
     private boolean indexExists(String tableName, String indexName) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?",

@@ -1,6 +1,10 @@
-派聪明（PaiSmart）是一个企业级的 AI 知识库管理系统，采用检索增强生成（RAG）技术，提供智能文档处理和检索能力。
+派聪明（PaiSmart）是一个企业级的 AI 知识库管理系统，采用检索增强生成（RAG）技术，提供智能文档处理、知识检索和 AI 问答能力。
 
-核心技术栈包括 Milvus、Kafka、WebSocket、Spring Security、Docker、MySQL 和 Redis。
+当前版本的检索底座已经从 Elasticsearch 重构为 **Milvus + MySQL 文本召回**：
+
+- **Milvus** 负责语义向量检索
+- **MySQL** 负责文本召回与权限过滤
+- 应用层负责融合排序，兼顾语义理解与关键词命中
 
 它的目标是帮助企业和个人更高效地管理和利用知识库中的信息，支持多租户架构，允许用户通过自然语言查询知识库，并获得基于自身文档的 AI 生成响应。
 
@@ -20,7 +24,7 @@
 + ORM : Spring Data JPA
 + 缓存 : Redis
 + 向量数据库 : Milvus 2.5.x
-+ 文本召回 : MySQL（应用层融合排序）
++ 文本召回 : MySQL FULLTEXT / LIKE 回退（应用层融合排序）
 + 消息队列 : Apache Kafka
 + 文件存储 : MinIO
 + 文档解析 : Apache Tika
@@ -83,8 +87,6 @@ frontend/
 
 ## 核心功能
 
-这里我先带大家了解一下什么是派聪明，我为什么要做派聪明这个企业级的 RAG 知识库？派聪明这个 AI 项目能让大家学到什么？以及如何解锁派聪明的源码仓库和教程？
-
 ![派聪明的聊天助手：会依据知识库进行问答](https://cdn.tobebetterjavaer.com/paicoding/2550c873a349d8bee29d46400f12ce76.png)
 
 ![派聪明的架构概览](https://cdn.tobebetterjavaer.com/stutymore/README-20250730101618.png)
@@ -107,6 +109,23 @@ frontend/
 - 基于 MySQL 文本召回补充关键词匹配能力，并在应用层完成融合排序
 - 可以根据用户的查询检索相关文档
 - 为 LLM 提供完整的上下文，从而生成更准确、基于文档的响应内容
+
+### 检索链路说明
+
+当前知识检索链路如下：
+
+1. 文档上传后，服务端完成解析、切块和向量化
+2. 文本块元数据保存在 `document_vectors` 表中
+3. 向量数据写入 Milvus 的 `knowledge_base` 集合
+4. 查询时先做 Milvus 向量召回，再做 MySQL 文本召回
+5. 服务端按 `search.vector-weight` 与 `search.text-weight` 进行融合排序
+6. 最终将高相关片段组装为上下文，发送给大模型生成答案
+
+这套实现相较于原来的 ES 方案，职责更清晰：
+
+- Milvus 专注向量检索
+- MySQL 负责结构化数据、权限和文本召回
+- 检索策略可以在服务层独立演进
 
 ### 企业级多租户
 
@@ -132,6 +151,79 @@ frontend/
 - Kafka 3.2.1
 - Redis 7.0.11
 - Docker（可选，用于运行 Redis、MinIO、Milvus 和 Kafka 等服务）
+
+## 本地依赖启动
+
+项目已经提供了本地联调用的 `docker compose` 文件，包含：
+
+- MySQL
+- Redis
+- MinIO
+- Kafka
+- Milvus standalone（含 `milvus-etcd`、`milvus-minio`）
+
+启动命令：
+
+```bash
+docker compose -f docs/docker-compose.yaml up -d
+```
+
+Windows PowerShell 示例：
+
+```powershell
+docker compose -f .\docs\docker-compose.yaml up -d
+```
+
+常用检查命令：
+
+```bash
+docker compose -f docs/docker-compose.yaml ps
+```
+
+Milvus 默认端口：
+
+- SDK / gRPC：`19530`
+- HTTP / WebUI：`9091`
+
+如果只想看 Milvus 的本地说明，也可以参考：
+
+- `docs/milvus-local.md`
+
+## 后端关键配置
+
+Milvus 相关配置位于 `application*.yml`：
+
+```yml
+milvus:
+  host: localhost
+  port: 19530
+  collection-name: knowledge_base
+  dimension: 2048
+  metric-type: COSINE
+  index-type: HNSW
+  hnsw-m: 16
+  hnsw-ef-construction: 200
+  search-ef: 64
+  text-max-length: 4096
+```
+
+混合检索权重配置：
+
+```yml
+search:
+  vector-weight: 0.7
+  text-weight: 0.3
+  vector-recall-k: 40
+  text-recall-k: 40
+```
+
+应用启动时会自动完成以下初始化动作：
+
+- 连接 Milvus
+- 检查并创建 `knowledge_base` 集合
+- 按配置创建向量索引并在需要时加载集合
+- 为 `document_vectors` 自动补齐常用 MySQL 索引
+- 优先创建 `FULLTEXT` 索引；若数据库环境不支持，则自动回退到 `LIKE` 文本检索
 
 ## 架构设计
 
@@ -224,3 +316,15 @@ pnpm install
 # 启动项目
 pnpm run dev
 ```
+
+## 后端启动
+
+```bash
+# 安装并启动本地依赖
+docker compose -f docs/docker-compose.yaml up -d
+
+# 启动后端
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+如果你已经用 IDE 配置好了运行环境，也可以直接使用 `local` profile 启动 `SmartPaiApplication`。

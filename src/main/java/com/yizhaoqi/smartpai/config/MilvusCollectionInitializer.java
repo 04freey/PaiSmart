@@ -18,7 +18,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 启动时确保 Milvus 集合存在且已加载。
+ * Milvus 集合初始化器。
+ * <p>
+ * 在 Spring Boot 启动阶段自动完成以下动作：
+ * <ul>
+ *     <li>检查目标集合是否存在</li>
+ *     <li>不存在时按当前配置创建集合与向量索引</li>
+ *     <li>已存在但未加载时执行 load，确保后续检索可直接使用</li>
+ * </ul>
  */
 @Component
 public class MilvusCollectionInitializer implements CommandLineRunner {
@@ -64,6 +71,12 @@ public class MilvusCollectionInitializer implements CommandLineRunner {
         }
     }
 
+    /**
+     * 根据当前业务字段定义创建知识分块集合。
+     * <p>
+     * 其中 {@code vector} 是向量检索字段，其余字段主要承担检索结果展示、
+     * 权限过滤和后续融合排序所需的元数据职责。
+     */
     private void createCollection(String collectionName) {
         CreateCollectionReq.CollectionSchema schema = milvusClient.createSchema();
 
@@ -124,6 +137,10 @@ public class MilvusCollectionInitializer implements CommandLineRunner {
         milvusClient.createCollection(request);
     }
 
+    /**
+     * 根据配置动态构建向量索引参数。
+     * 当前默认使用 HNSW + COSINE，并支持通过配置调整索引构建参数。
+     */
     private IndexParam buildVectorIndexParam() {
         IndexParam.IndexType indexType = resolveIndexType(milvusProperties.getIndexType());
         IndexParam.MetricType metricType = resolveMetricType(milvusProperties.getMetricType());
@@ -144,6 +161,9 @@ public class MilvusCollectionInitializer implements CommandLineRunner {
         return builder.build();
     }
 
+    /**
+     * 将配置文件中的索引类型字符串安全映射为 Milvus SDK 枚举。
+     */
     private IndexParam.IndexType resolveIndexType(String rawIndexType) {
         try {
             return IndexParam.IndexType.valueOf(rawIndexType.toUpperCase(Locale.ROOT));
@@ -153,6 +173,9 @@ public class MilvusCollectionInitializer implements CommandLineRunner {
         }
     }
 
+    /**
+     * 将配置文件中的距离度量字符串安全映射为 Milvus SDK 枚举。
+     */
     private IndexParam.MetricType resolveMetricType(String rawMetricType) {
         try {
             return IndexParam.MetricType.valueOf(rawMetricType.toUpperCase(Locale.ROOT));

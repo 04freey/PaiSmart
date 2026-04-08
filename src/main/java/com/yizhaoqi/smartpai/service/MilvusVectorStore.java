@@ -26,7 +26,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Milvus 向量库实现。
+ * 基于 Milvus 的向量存储实现。
+ * <p>
+ * 负责知识分块向量的写入、语义检索和删除，并在查询阶段把业务侧的权限条件
+ * 转换为 Milvus 过滤表达式，保证向量召回结果与系统权限模型保持一致。
  */
 @Service
 public class MilvusVectorStore implements VectorStore {
@@ -69,6 +72,9 @@ public class MilvusVectorStore implements VectorStore {
         }
     }
 
+    /**
+     * 执行一次带权限过滤的向量检索。
+     */
     @Override
     public List<KnowledgeChunkDocument> search(VectorSearchRequest request) {
         if (request == null || request.queryVector() == null || request.queryVector().length == 0) {
@@ -124,6 +130,7 @@ public class MilvusVectorStore implements VectorStore {
         try {
             milvusClient.delete(DeleteReq.builder()
                     .collectionName(milvusProperties.getCollectionName())
+                    // Milvus v2 delete 需要 filter，这里使用匹配全部主键的方式实现全量删除。
                     .filter("id like \"%\"")
                     .build());
         } catch (Exception e) {
@@ -132,6 +139,9 @@ public class MilvusVectorStore implements VectorStore {
         }
     }
 
+    /**
+     * 将统一知识块模型转换为 Milvus upsert 所需的 JSON 行结构。
+     */
     private JsonObject toJsonObject(KnowledgeChunkDocument document) {
         JsonObject row = new JsonObject();
         row.addProperty("id", document.getId());
@@ -146,6 +156,11 @@ public class MilvusVectorStore implements VectorStore {
         return row;
     }
 
+    /**
+     * 构造 Milvus 查询参数。
+     * <p>
+     * HNSW 索引下额外指定 ef，以在召回效果和查询性能之间做平衡。
+     */
     private Map<String, Object> buildSearchParams() {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("metric_type", milvusProperties.getMetricType().toUpperCase(Locale.ROOT));
@@ -155,6 +170,9 @@ public class MilvusVectorStore implements VectorStore {
         return params;
     }
 
+    /**
+     * 根据当前用户、组织标签和公开状态构造 Milvus 过滤表达式。
+     */
     private String buildFilter(VectorSearchRequest request) {
         if (request.publicOnly() || !StringUtils.hasText(request.userId())) {
             return "isPublic == true";
@@ -175,6 +193,9 @@ public class MilvusVectorStore implements VectorStore {
         return "(" + String.join(" or ", conditions) + ")";
     }
 
+    /**
+     * 将 Milvus 检索结果映射为应用层统一知识块对象。
+     */
     private KnowledgeChunkDocument toKnowledgeChunkDocument(SearchResp.SearchResult result) {
         Map<String, Object> entity = result.getEntity();
         KnowledgeChunkDocument document = new KnowledgeChunkDocument();
@@ -190,10 +211,16 @@ public class MilvusVectorStore implements VectorStore {
         return document;
     }
 
+    /**
+     * 将 null 统一收敛为空字符串，避免 Milvus 字符串字段写入报错。
+     */
     private String normalizeString(String value) {
         return value == null ? "" : value;
     }
 
+    /**
+     * 控制文本字段长度，避免超过集合 schema 中定义的最大长度。
+     */
     private String truncate(String value, int maxLength) {
         if (value == null) {
             return "";
@@ -201,6 +228,9 @@ public class MilvusVectorStore implements VectorStore {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
+    /**
+     * 转义过滤表达式中的特殊字符，避免构造出的 Milvus 语句非法。
+     */
     private String escapeFilterString(String value) {
         return normalizeString(value)
                 .replace("\\", "\\\\")
@@ -211,6 +241,9 @@ public class MilvusVectorStore implements VectorStore {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 兼容 SDK 返回 number / string 两种类型的 chunkId。
+     */
     private Integer asInteger(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -221,6 +254,9 @@ public class MilvusVectorStore implements VectorStore {
         return null;
     }
 
+    /**
+     * 兼容 SDK 返回 boolean / string 两种类型的布尔值。
+     */
     private boolean asBoolean(Object value) {
         if (value instanceof Boolean bool) {
             return bool;

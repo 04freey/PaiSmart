@@ -22,7 +22,10 @@ import java.util.Set;
 
 /**
  * 基于 MySQL 的文本召回服务。
- * 优先走 FULLTEXT，失败时回退到 LIKE/LOCATE。
+ * <p>
+ * 该服务负责补充关键词匹配能力，作为向量检索之外的第二路召回来源。
+ * 查询流程优先使用 FULLTEXT，以获得更好的排序能力；若数据库环境不支持，
+ * 则自动回退到 LIKE 方案，保证功能可用性。
  */
 @Service
 public class TextSearchService {
@@ -37,6 +40,9 @@ public class TextSearchService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * 查询当前用户可访问范围内的文本命中结果。
+     */
     public List<KnowledgeChunkDocument> searchAccessible(String query, String userId, List<String> orgTags, int limit) {
         if (!StringUtils.hasText(query) || !StringUtils.hasText(userId)) {
             return Collections.emptyList();
@@ -53,6 +59,9 @@ public class TextSearchService {
         return searchAccessibleByLike(context, userId, orgTags);
     }
 
+    /**
+     * 查询公开知识库中的文本命中结果。
+     */
     public List<KnowledgeChunkDocument> searchPublic(String query, int limit) {
         if (!StringUtils.hasText(query)) {
             return Collections.emptyList();
@@ -69,6 +78,9 @@ public class TextSearchService {
         return searchPublicByLike(context);
     }
 
+    /**
+     * FULLTEXT + 权限条件的文本召回。
+     */
     private List<KnowledgeChunkDocument> searchAccessibleByFullText(SearchContext context, String userId, List<String> orgTags) {
         StringBuilder sql = new StringBuilder("""
                 SELECT vector_id, file_md5, chunk_id, text_content, model_version, user_id, org_tag, is_public,
@@ -100,6 +112,9 @@ public class TextSearchService {
         }
     }
 
+    /**
+     * FULLTEXT + 公开知识范围的文本召回。
+     */
     private List<KnowledgeChunkDocument> searchPublicByFullText(SearchContext context) {
         String sql = """
                 SELECT vector_id, file_md5, chunk_id, text_content, model_version, user_id, org_tag, is_public,
@@ -123,6 +138,9 @@ public class TextSearchService {
         }
     }
 
+    /**
+     * LIKE 回退查询：适用于 FULLTEXT 不可用时的兜底路径。
+     */
     private List<KnowledgeChunkDocument> searchAccessibleByLike(SearchContext context, String userId, List<String> orgTags) {
         StringBuilder sql = new StringBuilder("""
                 SELECT vector_id, file_md5, chunk_id, text_content, model_version, user_id, org_tag, is_public
@@ -145,6 +163,9 @@ public class TextSearchService {
         return jdbcTemplate.query(sql.toString(), params, this::mapRow);
     }
 
+    /**
+     * 公开知识范围下的 LIKE 回退查询。
+     */
     private List<KnowledgeChunkDocument> searchPublicByLike(SearchContext context) {
         StringBuilder sql = new StringBuilder("""
                 SELECT vector_id, file_md5, chunk_id, text_content, model_version, user_id, org_tag, is_public
@@ -160,6 +181,9 @@ public class TextSearchService {
         return jdbcTemplate.query(sql.toString(), params, this::mapRow);
     }
 
+    /**
+     * 将分词后的检索项拼接为多个 LIKE 条件。
+     */
     private void appendLikeTerms(StringBuilder sql, MapSqlParameterSource params, List<String> terms) {
         for (int i = 0; i < terms.size(); i++) {
             String paramName = "term" + i;
@@ -171,6 +195,11 @@ public class TextSearchService {
         }
     }
 
+    /**
+     * 构建检索上下文。
+     * <p>
+     * 这里会先保留原始查询，再尝试用 HanLP 做分词扩展，以提升 FULLTEXT 与 LIKE 两种方案的召回效果。
+     */
     private SearchContext buildSearchContext(String rawQuery, int limit) {
         String normalized = rawQuery == null ? "" : rawQuery.trim();
         if (!StringUtils.hasText(normalized)) {
@@ -204,6 +233,9 @@ public class TextSearchService {
         return new SearchContext(naturalQuery, booleanQuery, orderedTerms, safeLimit, safeLimit * FALLBACK_MULTIPLIER);
     }
 
+    /**
+     * 将检索词拼接为 MySQL BOOLEAN MODE 可识别的查询语句。
+     */
     private String buildBooleanQuery(List<String> terms) {
         List<String> fragments = new ArrayList<>();
         for (String term : terms) {
@@ -217,6 +249,9 @@ public class TextSearchService {
         return String.join(" ", fragments);
     }
 
+    /**
+     * 将数据库结果映射为统一知识块对象。
+     */
     private KnowledgeChunkDocument mapRow(ResultSet rs, int rowNum) throws SQLException {
         KnowledgeChunkDocument document = new KnowledgeChunkDocument();
         document.setId(KnowledgeChunkDocument.buildId(
@@ -242,6 +277,15 @@ public class TextSearchService {
         return document;
     }
 
+    /**
+     * 文本搜索执行上下文。
+     *
+     * @param naturalQuery 适用于 NATURAL LANGUAGE MODE 的查询语句
+     * @param booleanQuery 适用于 BOOLEAN MODE 的查询语句
+     * @param terms        当前参与匹配的检索词集合
+     * @param limit        正常召回条数
+     * @param fallbackLimit LIKE 回退路径使用的更大候选条数
+     */
     private record SearchContext(
             String naturalQuery,
             String booleanQuery,
